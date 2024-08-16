@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excavation Waste Calculator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+        }
+        header {
+            background: #EFF8FD;
+            padding: 8px;
+            text-align: left;
+            font-size: 18px;
+            width: 100%;
+            color: #052031;
+            display: flex;
+            align-items: center;
+            justify-content: left;
+        }
+        header .logo {
+            height: 50px;
+            margin-right: 15px;
+        }
+        header h1 {
+            font-size: 1.5em;
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            height: calc(100vh - 40px);
+        }
+        #map {
+            flex: 3;
+            height: 100%;
+            position: relative;
+        }
+        .form-container {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            height: calc(100vh - 60px);
+            background: #052031;
+            color: #ffffff;
+        }
+        .form-container form {
+            display: flex;
+            flex-direction: column;
+            background: #052031;
+            color: #ffffff;
+            border-radius: 5px;
+        }
+        .form-container label,
+        .form-container input,
+        .form-container button {
+            margin-bottom: 10px;
+        }
+        .form-container form {
+            margin-bottom: 20px;
+        }
+        .form-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: Start;
+            align-items: left;
+        }
+        /* Style for the info icon */
+        .info-icon {
+            width: 30px;
+            height: 30px;
+            vertical-align: middle;
+            cursor: pointer;
+            margin-left: 10px; /* Adds some space between the button and the icon */
+            position: relative;
+            top: -46px; /* Adjust this value to position it vertically */
+            left: 310px; /* Adjust this value to position it horizontally */
+        }
+
+        /* Style for the popup */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .popup-content {
+            background-color: white;
+            padding: 20px;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            border-radius: 10px;
+        }
+
+        .close-popup {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            float: right;
+        }
+
+        .close-popup:hover {
+            background-color: #d32f2f;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: auto;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Company Logo" class="logo">
+        <h1>Road Excavation Waste Calculator</h1>
+    </header>
+    <div class="container">
+        <div id="map"></div>
+        <div class="form-container">
+            <h2>Step 1: Location</h2>
+            <div class="map-instruction">Please click on the map to select the location of the excavation.</div>
+            <h2>Step 2: Excavation Dimensions</h2>
+            <form id="calcForm">
+                <label for="length">Length (meters):</label>
+                <input type="number" id="length" name="length" step="0.01" required>
+                <label for="width">Width (meters):</label>
+                <input type="number" id="width" name="width" step="0.01" required>
+                <label for="depth">Depth (meters):</label>
+                <input type="number" id="depth" name="depth" step="0.01" required>
+                <button type="submit">Calculate Waste Quantities</button>
+                <img src="{{ url_for('static', filename='info_icon.png') }}" class="info-icon" id="infoIcon">
+            </form>
+            <div id="results"></div>
+        </div>
+    </div>
+    <div class="popup-overlay" id="popupOverlay">
+        <div class="popup-content">
+            <button class="close-popup" id="closePopup">Close</button>
+            <h2>Schema for GHG Emissions Calculation</h2>
+            <p>Input Parameters</p>
+            <!-- Add all your schema information here -->
+        </div>
+    </div>
+    <script>
+        var map, marker, routeLayer, transferStationMarker;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            map = L.map('map').setView([40.7128, -74.0060], 13);
+
+            L.tileLayer('https://tile.jawg.io/jawg-dark/{z}/{x}/{y}{r}.png?access-token=nud99okBheTb7jvuRYOEZCCOXoDdC4gOixB1IBXK3M0nHpVbt7ptcPwXPnaeioo9', {
+                attribution: "<a href=\"https://www.jawg.io?utm_medium=map&utm_source=attribution\" target=\"_blank\">&copy; Jawg</a> - <a href=\"https://www.openstreetmap.org?utm_medium=map-attribution&utm_source=jawg\" target=\"_blank\">&copy; OpenStreetMap</a>&nbsp;contributors"
+            }).addTo(map);
+
+            // Load borough shapefile
+            fetch('/static/Borough_Boundaries.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: function (feature) {
+                            return {
+                                color: "#0b5394",
+                                weight: 2,
+                                fillOpacity: 0
+                            };
+                        }
+                    }).addTo(map);
+                })
+                .catch(error => console.error('Error loading borough boundaries:', error));
+
+            map.on('click', function(e) {
+                if (window.marker) {
+                    map.removeLayer(window.marker);
+                }
+                window.marker = L.marker(e.latlng, {draggable: true}).addTo(map);
+                
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('No address found');
+                            window.marker.bindPopup('No address available').openPopup();
+                        } else {
+                            var address = data.address;
+                            var shortAddress = `${address.road || ''}, ${address.city || address.town || ''}, ${address.country}`;
+                            window.marker.bindPopup(`Address: ${shortAddress}`).openPopup();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Geocoding error:', error);
+                        window.marker.bindPopup('Failed to retrieve address').openPopup();
+                    });
+            });
+        });
+        document.getElementById('infoIcon').onclick = function() {
+            document.getElementById('popupOverlay').style.display = 'flex';
+        };
+
+        document.getElementById('closePopup').onclick = function() {
+            document.getElementById('popupOverlay').style.display = 'none';
+        };
+        document.getElementById('calcForm').onsubmit = function(event) {
+            event.preventDefault();
+            if (marker) {
+                var location = marker.getLatLng();
+                var length = document.getElementById('length').value;
+                var width = document.getElementById('width').value;
+                var depth = document.getElementById('depth').value;
+
+                fetch('/calculate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({location: {lat: location.lat, lng: location.lng}, length, width, depth})
+                }).then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                }).then(data => {
+                    var resultsDiv = document.getElementById('results');
+                    resultsDiv.innerHTML = '<h2>Waste Quantities:</h2>';
+                    for (const material in data) {
+                        if (material !== 'ts_distance' && typeof data[material] === 'number') {
+                            resultsDiv.innerHTML += `<p>${material}: ${data[material].toFixed(2)} kg CO2e</p>`;
+                        }
+                    }
+
+                    if (data.route_coords) {
+                        if (routeLayer) {
+                            map.removeLayer(routeLayer);
+                        }
+                        routeLayer = L.polyline(data.route_coords.map(coord => [coord[1], coord[0]]), {color: '#fff0ab'}).addTo(map);
+                        map.fitBounds(routeLayer.getBounds());
+
+                        if (transferStationMarker) {
+                            map.removeLayer(transferStationMarker);
+                        }
+                        const lastCoord = data.route_coords[data.route_coords.length - 1];
+                        transferStationMarker = L.marker([lastCoord[1], lastCoord[0]],)
+                            .bindPopup(`Closest CDW Transfer Station is ${data.ts_distance.toFixed(2)} miles`)
+                            .addTo(map)
+                            .openPopup();
+                    }
+                }).catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('Error fetching data. See console for details.');
+                });
+            } else {
+                alert('Please place a marker on the map first.');
+            }
+        };
+    </script>
+</body>
+</html>
