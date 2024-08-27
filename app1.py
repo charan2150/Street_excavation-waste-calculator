@@ -1,12 +1,13 @@
+import os
 from flask import Flask, render_template, request, jsonify
 import requests
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString
 import logging
-
-app = Flask(__name__)
-
+from flask_cors import CORS
+app = Flask(__name__, static_folder='static')
+CORS(app)
 def geocode_input(input_string):
     if ',' in input_string:
         try:
@@ -68,10 +69,10 @@ def get_route(origin, destination):
         return data['routes'][0]['geometry']['coordinates']
     return []
 
-borough_shapefile = gpd.read_file("C:/Users/sk9655/Downloads/Untitled Folder/CDW calculator/Borough_Boundaries.geojson")
-census_blocks = gpd.read_file(r"C:\Users\sk9655\Downloads\Untitled Folder\CDW calculator\data\NYC_Census_2020.shp").to_crs(epsg=4326)
-cb_to_ts = gpd.read_file(r"C:\Users\sk9655\Downloads\Untitled Folder\CDW calculator\data\census_blocks_to_TS_filtered.shp").to_crs(epsg=4326)
-ts_to_landfill = pd.read_csv(r"C:\Users\sk9655\Downloads\Untitled Folder\CDW calculator\data\Transfer_to_Landfill_filtered.csv")
+borough_shapefile = gpd.read_file(os.path.join(app.root_path, 'static/Borough_Boundaries.geojson'))
+census_blocks = gpd.read_file(os.path.join(app.root_path, 'static/data/NYC_Census_2020.shp')).to_crs(epsg=4326)
+cb_to_ts = gpd.read_file(os.path.join(app.root_path, 'static/data/census_blocks_to_TS_filtered.shp')).to_crs(epsg=4326)
+ts_to_landfill = pd.read_csv(os.path.join(app.root_path, 'static/data/Transfer_to_Landfill_filtered.csv'))
 
 borough_waste_composition = {
     "Manhattan": {"asphalt": 0.1, "concrete": 0.15, "gravel": 0.25, "dirt": 0.5},
