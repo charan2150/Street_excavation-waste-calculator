@@ -9,8 +9,14 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder='static')
 CORS(app)
 static_path = os.path.join(app.root_path, 'static')
-borough_shapefile = gpd.read_file(os.path.join(static_path, 'Borough_Boundaries.geojson'))
-logging.debug(f"Loaded GeoDataFrame: {borough_shapefile}")
+
+def ensure_multipolygon(geometry):
+    if isinstance(geometry, Polygon):
+        return MultiPolygon([geometry])
+    elif isinstance(geometry, MultiPolygon):
+        return geometry
+    else:
+        raise ValueError(f"Unsupported geometry type: {geometry.geom_type}")
 
 def geocode_input(input_string):
     if ',' in input_string:
@@ -74,6 +80,8 @@ def get_route(origin, destination):
     return []
 
 borough_shapefile = gpd.read_file(os.path.join(static_path, 'Borough_Boundaries.geojson'))
+# Ensure all geometries are MultiPolygon
+borough_shapefile['geometry'] = borough_shapefile['geometry'].apply(ensure_multipolygon)
 census_blocks = gpd.read_file(os.path.join(static_path, 'data/NYC_Census_2020.shp')).to_crs(epsg=4326)
 cb_to_ts = gpd.read_file(os.path.join(static_path, 'data/census_blocks_to_TS_filtered.shp')).to_crs(epsg=4326)
 ts_to_landfill = pd.read_csv(os.path.join(static_path, 'data/Transfer_to_Landfill_filtered.csv'))
