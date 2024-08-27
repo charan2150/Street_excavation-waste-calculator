@@ -11,13 +11,12 @@ CORS(app)
 static_path = os.path.join(app.root_path, 'static')
 
 def ensure_multipolygon(geometry):
-    if isinstance(geometry, Polygon):
+    if geometry.geom_type == 'Polygon':
         return MultiPolygon([geometry])
-    elif isinstance(geometry, MultiPolygon):
+    elif geometry.geom_type == 'MultiPolygon':
         return geometry
     else:
         raise ValueError(f"Unsupported geometry type: {geometry.geom_type}")
-
 def geocode_input(input_string):
     if ',' in input_string:
         try:
@@ -80,7 +79,6 @@ def get_route(origin, destination):
     return []
 
 borough_shapefile = gpd.read_file(os.path.join(static_path, 'Borough_Boundaries.geojson'))
-# Ensure all geometries are MultiPolygon
 borough_shapefile['geometry'] = borough_shapefile['geometry'].apply(ensure_multipolygon)
 census_blocks = gpd.read_file(os.path.join(static_path, 'data/NYC_Census_2020.shp')).to_crs(epsg=4326)
 cb_to_ts = gpd.read_file(os.path.join(static_path, 'data/census_blocks_to_TS_filtered.shp')).to_crs(epsg=4326)
