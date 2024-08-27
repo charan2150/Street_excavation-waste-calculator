@@ -9,6 +9,9 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder='static')
 CORS(app)
 static_path = os.path.join(app.root_path, 'static')
+borough_shapefile = gpd.read_file(os.path.join(static_path, 'Borough_Boundaries.geojson'))
+logging.debug(f"Loaded GeoDataFrame: {borough_shapefile}")
+
 def geocode_input(input_string):
     if ',' in input_string:
         try:
